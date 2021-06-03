@@ -1,7 +1,13 @@
+/* -------------------------------------------------------------------------- */
+/*                                    setup                                   */
+/* -------------------------------------------------------------------------- */
+
 #include <WiFi.h>
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <ESP32QRCodeReader.h>
+
+/* --------------------------------- globals -------------------------------- */
 
 #define BAUD (9600)
 #define OPEN_DOOR_MSG ("OPEN")
@@ -24,27 +30,7 @@ WiFiServer server(ESP_ACCESS_PORT);
 
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 
-void send_open_door_message(int locker_id)
-{
-  // "Open door" message format is always 2 messages, the first is "OPEN" and second is the locker number as a string
-  Serial.println(OPEN_DOOR_MSG);
-  Serial.println(locker_id);   // TODO decide on locker number according to qr code data
-  delay(2000);         // prevent race in the webserver
-}
-
-void open_door_flow(const char *qr_data)
-{
-  bool authorized = true; // TODO call webserver and VALIDATE qr_data
-
-  if (authorized)
-  {
-    send_open_door_message(1);
-  }
-  else
-  {
-    // TODO
-  }
-}
+/* ----------------------------- setup functions ---------------------------- */
 
 bool connect_to_wifi()
 {
@@ -72,6 +58,53 @@ bool connect_to_wifi()
   return true;
 }
 
+void setup()
+{
+  Serial.begin(BAUD);
+
+  reader.setup();
+  //reader.setDebug(true);
+  Serial.println("Setup QRCode Reader");
+
+  reader.begin();
+  Serial.println("Begin QR Code reader");
+
+  is_connected = connect_to_wifi();
+  if (is_connected) {
+    server.begin();
+  }
+
+  delay(1000);
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               business logic                               */
+/* -------------------------------------------------------------------------- */
+
+/* ---------------------------------- utils --------------------------------- */
+
+void send_open_door_message(int locker_id)
+{
+  // "Open door" message format is always 2 messages, the first is "OPEN" and second is the locker number as a string
+  Serial.println(OPEN_DOOR_MSG);
+  Serial.println(locker_id);   // TODO decide on locker number according to qr code data
+  delay(2000);         // prevent race in the webserver
+}
+
+void open_door_flow(const char *qr_data)
+{
+  bool authorized = true; // TODO call webserver and VALIDATE qr_data
+
+  if (authorized)
+  {
+    send_open_door_message(1);
+  }
+  else
+  {
+    // TODO
+  }
+}
+
 void call_webhook(String endpoint, String payload)
 {
   HTTPClient http;
@@ -90,13 +123,17 @@ void call_webhook(String endpoint, String payload)
   {
     // Serial.println("Open door");      
 
-    // open_door_flow((const char *)qr_code_data.payload);
+    // open_door_flow((const char *)qr_code_data.payload); - 
+    // TODO REPLACE WITH: "validate qr code" function -> send_open_door_message(locker_id)
+    // TODO Then remove the open_door_flow function
     Serial.println("TEMP - here we will try to open door");
     delay(2000);
   }
 
   http.end();
 }
+
+/* ------------------------- check-for-... functions ------------------------ */
 
 void check_for_qr()
 {
@@ -171,24 +208,9 @@ void check_for_remote_input() {
   }
 } 
 
-void setup()
-{
-  Serial.begin(BAUD);
-
-  reader.setup();
-  //reader.setDebug(true);
-  Serial.println("Setup QRCode Reader");
-
-  reader.begin();
-  Serial.println("Begin QR Code reader");
-
-  is_connected = connect_to_wifi();
-  if (is_connected) {
-    server.begin();
-  }
-
-  delay(1000);
-}
+/* -------------------------------------------------------------------------- */
+/*                                 boilerplate                                */
+/* -------------------------------------------------------------------------- */
 
 void loop()
 {
