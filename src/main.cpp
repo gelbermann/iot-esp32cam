@@ -5,29 +5,40 @@
 
 #define BAUD (9600)
 #define OPEN_DOOR_MSG ("OPEN")
+#define WEBSERVER_MSG_PREFIX ("prefix_")
+#define WEBSERVER_MSG_PREFIX_LEN (7)
 
 // TODO update according to current working environment
-#define WIFI_SSID ("Gelbermann")     
-#define WIFI_PASSWORD ("metallica") 
-#define WEBHOOK_URL ("http://192.168.43.174:8000/lockers/api/")
+#define WIFI_SSID ("22102630")     
+#define WIFI_PASSWORD ("0506298446") 
+#define ESP_ACCESS_PORT (80)
+#define WEBHOOK_URL ("http://192.168.1.128:8000/lockers/api/")
 
 #define QR_ENDPOINT ("collect/qr/")
 #define NFC_ENDPOINT ("collect/nfc/")
 
+#define INVALID_LOCKER_ID (-1)
+
 bool is_connected = false;
+WiFiServer server(ESP_ACCESS_PORT);
 
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 
+void send_open_door_message(int locker_id)
+{
+  // "Open door" message format is always 2 messages, the first is "OPEN" and second is the locker number as a string
+  Serial.println(OPEN_DOOR_MSG);
+  Serial.println(locker_id);   // TODO decide on locker number according to qr code data
+  delay(2000);         // prevent race in the webserver
+}
+
 void open_door_flow(const char *qr_data)
 {
-  bool authorized = true; // TODO call webserver and VALIDATE qr code data
+  bool authorized = true; // TODO call webserver and VALIDATE qr_data
 
   if (authorized)
   {
-    // "Open door" message format is always 2 messages, the first is "OPEN" and second is the locker number as a string
-    Serial.println(OPEN_DOOR_MSG);
-    Serial.println("1"); // TODO decide on locker number according to qr code data
-    delay(2000);         // prevent race in the webserver
+    send_open_door_message(1);
   }
   else
   {
@@ -37,6 +48,7 @@ void open_door_flow(const char *qr_data)
 
 bool connect_to_wifi()
 {
+  // Serial.println("Connecting to wifi");
   if (WiFi.status() == WL_CONNECTED)
   {
     return true;
@@ -56,6 +68,7 @@ bool connect_to_wifi()
   }
   Serial.println("");
   Serial.println("WiFi connected");
+  Serial.println(WiFi.localIP());
   return true;
 }
 
@@ -108,6 +121,56 @@ void check_for_qr()
   }
 }
 
+void check_for_nfc() {
+  // TODO
+}
+
+void check_for_remote_input() {
+  WiFiClient client = server.available(); 
+  int locker_id = INVALID_LOCKER_ID;
+
+  if (client) { // new client connects
+    Serial.print("Found client: ");
+    Serial.println(client.remoteIP());
+    
+    if (client.connected() && client.available()) 
+    {
+      Serial.println("Read client data...");
+      String http_request = client.readString();
+      // Serial.println(http_request);
+
+      int message_start_idx = http_request.indexOf(WEBSERVER_MSG_PREFIX) + WEBSERVER_MSG_PREFIX_LEN;
+      // Serial.print("Message start index: ");
+      // Serial.println(message_start_idx);
+      String message = http_request.substring(message_start_idx);
+      locker_id = message.toInt();
+
+      Serial.print("Incoming message: ");
+      Serial.println(message);
+
+      client.println("HTTP/1.1 200 OK");
+      client.println("Content-type:text/plain");
+      client.println("Connection: close");
+      client.println();
+      delay(300);
+    }
+
+    // Close the connection
+    client.stop();
+    // Serial.println("Client disconnected.");
+    // Serial.println("");
+  } 
+  else 
+  {
+    // Serial.println("Client not available");
+  }
+
+  if (locker_id != INVALID_LOCKER_ID)  // Received locker id to open from webserver
+  {
+    send_open_door_message(locker_id);
+  }
+} 
+
 void setup()
 {
   Serial.begin(BAUD);
@@ -118,6 +181,11 @@ void setup()
 
   reader.begin();
   Serial.println("Begin QR Code reader");
+
+  is_connected = connect_to_wifi();
+  if (is_connected) {
+    server.begin();
+  }
 
   delay(1000);
 }
@@ -131,6 +199,8 @@ void loop()
   }
 
   check_for_qr();
+  check_for_nfc();  // TODO
+  check_for_remote_input();
 
   delay(300);
 }
