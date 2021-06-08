@@ -61,7 +61,7 @@ bool connect_to_wifi()
 
 void setup()
 {
-  // debug_print Serial.begin(BAUD);
+  Serial.begin(BAUD);
 
   reader.setup();
   //reader.setDebug(true);
@@ -76,6 +76,7 @@ void setup()
   }
 
   // debug_print Serial.println(WiFi.localIP());
+  Serial.println("ESP32CAM setup complete");
 
   delay(1000);
 }
@@ -91,7 +92,7 @@ void send_open_door_message(int locker_id)
   // "Open door" message format is always 2 messages, the first is "OPEN" and second is the locker number as a string
   // debug_print Serial.println("asking server to open door");
   Serial.println(OPEN_DOOR_MSG);
-  Serial.println(locker_id);   // TODO decide on locker number according to qr code data
+  Serial.println(locker_id);
   delay(2000);         // prevent race in the webserver
 }
 
