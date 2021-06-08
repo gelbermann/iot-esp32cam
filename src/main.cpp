@@ -11,14 +11,15 @@
 
 #define BAUD (9600)
 #define OPEN_DOOR_MSG ("OPEN")
+#define NFC_START_MSG ("NFC_UUID")
 #define WEBSERVER_MSG_PREFIX ("prefix_")
 #define WEBSERVER_MSG_PREFIX_LEN (7)
 
 // TODO update according to current working environment
-#define WIFI_SSID ("22102630")     
-#define WIFI_PASSWORD ("0506298446") 
+#define WIFI_SSID ("S21")     
+#define WIFI_PASSWORD ("ejfj9838") 
 #define ESP_ACCESS_PORT (80)
-#define WEBHOOK_URL ("http://192.168.1.128:8000/lockers/api/")
+#define WEBHOOK_URL ("http://192.168.115.174:8000/lockers/api/")
 
 #define QR_ENDPOINT ("collect/qr/")
 #define NFC_ENDPOINT ("collect/nfc/")
@@ -34,7 +35,7 @@ ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 
 bool connect_to_wifi()
 {
-  // Serial.println("Connecting to wifi");
+  // //dubug_print Serial.println("Connecting to wifi");
   if (WiFi.status() == WL_CONNECTED)
   {
     return true;
@@ -45,29 +46,29 @@ bool connect_to_wifi()
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(500);
-    // Serial.print(".");
+    // //dubug_print Serial.print(".");
     maxRetries--;
     if (maxRetries <= 0)
     {
       return false;
     }
   }
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println(WiFi.localIP());
+  //dubug_print Serial.println("");
+  //dubug_print Serial.println("WiFi connected");
+  //dubug_print Serial.println(WiFi.localIP());
   return true;
 }
 
 void setup()
 {
-  Serial.begin(BAUD);
+  //dubug_print Serial.begin(BAUD);
 
   reader.setup();
   //reader.setDebug(true);
-  Serial.println("Setup QRCode Reader");
+  //dubug_print Serial.println("Setup QRCode Reader");
 
   reader.begin();
-  Serial.println("Begin QR Code reader");
+  //dubug_print Serial.println("Begin QR Code reader");
 
   is_connected = connect_to_wifi();
   if (is_connected) {
@@ -91,7 +92,7 @@ void send_open_door_message(int locker_id)
   delay(2000);         // prevent race in the webserver
 }
 
-void open_door_flow(const char *qr_data)
+/*void open_door_flow(const char *qr_data)
 {
   bool authorized = true; // TODO call webserver and VALIDATE qr_data
 
@@ -103,30 +104,30 @@ void open_door_flow(const char *qr_data)
   {
     // TODO
   }
-}
+}*/
 
 void call_webhook(String endpoint, String payload)
 {
   HTTPClient http;
   // uuid=<str:uuid>&<int:recipient_id>&<int:locker_id>
   String url = WEBHOOK_URL + endpoint + payload;
-  Serial.print("url: ");
-  Serial.println(url);
+  //dubug_print Serial.print("url: ");
+  //dubug_print Serial.println(url);
   int httpBegin = http.begin(url);
-  Serial.print("httpBegin: ");
-  Serial.println(httpBegin);
+  //dubug_print Serial.print("httpBegin: ");
+  //dubug_print Serial.println(httpBegin);
 
   int httpCode = http.GET();
-  Serial.print("httpCode: ");
-  Serial.println(httpCode);
+  //dubug_print Serial.print("httpCode: ");
+  //dubug_print Serial.println(httpCode);
   if (httpCode == HTTP_CODE_OK)
   {
-    // Serial.println("Open door");      
+    // //dubug_print Serial.println("Open door");      
 
     // open_door_flow((const char *)qr_code_data.payload); - 
     // TODO REPLACE WITH: "validate qr code" function -> send_open_door_message(locker_id)
     // TODO Then remove the open_door_flow function
-    Serial.println("TEMP - here we will try to open door");
+    //dubug_print Serial.println("TEMP - here we will try to open door");
     delay(2000);
   }
 
@@ -140,26 +141,40 @@ void check_for_qr()
   struct QRCodeData qr_code_data;
   if (reader.receiveQrCode(&qr_code_data, 100))
   {
-    Serial.println("Found QRCode");
+    //dubug_print Serial.println("Found QRCode");
     if (qr_code_data.valid)
     {
       uint8_t* qr_uuid = qr_code_data.payload + 10;
       qr_uuid[32] = 0;
       
-      Serial.print("Payload: ");
-      Serial.println((const char *) qr_uuid);
+      //dubug_print Serial.print("Payload: ");
+      //dubug_print Serial.println((const char *) qr_uuid);
       call_webhook(QR_ENDPOINT, String((const char *) qr_uuid));
     }
     else
     {
-      Serial.print("Invalid: ");
-      Serial.println((const char *) qr_code_data.payload);
+      //dubug_print Serial.print("Invalid: ");
+      //dubug_print Serial.println((const char *) qr_code_data.payload);
     }
   }
 }
 
 void check_for_nfc() {
-  // TODO
+
+  if(Serial.available())
+  {
+    String msg = Serial.readStringUntil('\n');
+    if(msg.startsWith(NFC_START_MSG))
+    {
+      String uuid = Serial.readStringUntil('\n');
+      sendUuidToServer(uuid);
+    }
+  }
+}
+
+void sendUuidToServer(String uuid)
+{
+  call_webhook(NFC_ENDPOINT, uuid));
 }
 
 void check_for_remote_input() {
@@ -167,23 +182,23 @@ void check_for_remote_input() {
   int locker_id = INVALID_LOCKER_ID;
 
   if (client) { // new client connects
-    Serial.print("Found client: ");
-    Serial.println(client.remoteIP());
+    //dubug_print Serial.print("Found client: ");
+    //dubug_print Serial.println(client.remoteIP());
     
     if (client.connected() && client.available()) 
     {
-      Serial.println("Read client data...");
+      //dubug_print Serial.println("Read client data...");
       String http_request = client.readString();
-      // Serial.println(http_request);
+      // //dubug_print Serial.println(http_request);
 
       int message_start_idx = http_request.indexOf(WEBSERVER_MSG_PREFIX) + WEBSERVER_MSG_PREFIX_LEN;
-      // Serial.print("Message start index: ");
-      // Serial.println(message_start_idx);
+      // //dubug_print Serial.print("Message start index: ");
+      // //dubug_print Serial.println(message_start_idx);
       String message = http_request.substring(message_start_idx);
       locker_id = message.toInt();
 
-      Serial.print("Incoming message: ");
-      Serial.println(message);
+      //dubug_print Serial.print("Incoming message: ");
+      //dubug_print Serial.println(message);
 
       client.println("HTTP/1.1 200 OK");
       client.println("Content-type:text/plain");
@@ -194,12 +209,12 @@ void check_for_remote_input() {
 
     // Close the connection
     client.stop();
-    // Serial.println("Client disconnected.");
-    // Serial.println("");
+    // //dubug_print Serial.println("Client disconnected.");
+    // //dubug_print Serial.println("");
   } 
   else 
   {
-    // Serial.println("Client not available");
+    // //dubug_print Serial.println("Client not available");
   }
 
   if (locker_id != INVALID_LOCKER_ID)  // Received locker id to open from webserver
@@ -221,7 +236,7 @@ void loop()
   }
 
   check_for_qr();
-  check_for_nfc();  // TODO
+  check_for_nfc();
   check_for_remote_input();
 
   delay(300);
